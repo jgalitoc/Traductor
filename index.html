@@ -266,7 +266,7 @@ async function doTranslate(text){
   const hint=lc?`El texto está en ${map[lc]||lc}.`:'Detecta el idioma automáticamente.';
   try{
     const res=await fetch('https://api.anthropic.com/v1/messages',{
-      method:'POST',headers:{'Content-Type':'application/json'},
+      method:'POST',headers:{'Content-Type':'application/json','anthropic-dangerous-direct-browser-access':'true'},
       body:JSON.stringify({
         model:'claude-sonnet-4-20250514',max_tokens:1000,
         messages:[{role:'user',content:`Eres un traductor experto. ${hint}\nTraduce al español de forma natural.\nResponde SOLO con JSON sin markdown:\n{"original":"...","translation":"...","detected_language":"..."}\n\nTexto:\n${text}`}]
