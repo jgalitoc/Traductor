@@ -19,17 +19,6 @@ header{text-align:center;margin-bottom:28px;animation:fd .7s ease both}
 h1{font-size:clamp(30px,8vw,52px);font-weight:800;letter-spacing:-.03em;line-height:1.05;background:linear-gradient(135deg,#fff 0%,#a0c4ff 50%,var(--accent) 100%);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;margin-bottom:8px}
 .sub{color:var(--muted);font-size:14px}
 
-/* API KEY BOX */
-.apibox{background:rgba(0,229,160,.06);border:1px solid rgba(0,229,160,.2);border-radius:14px;padding:16px 18px;margin-bottom:20px;animation:fd .7s .05s ease both}
-.apibox.ok{background:rgba(0,229,160,.08);border-color:rgba(0,229,160,.4)}
-.apilabel{font-family:'DM Mono',monospace;font-size:11px;color:var(--accent);text-transform:uppercase;letter-spacing:.12em;margin-bottom:10px;display:flex;align-items:center;gap:8px}
-.apirow{display:flex;gap:8px}
-.apiinput{flex:1;background:var(--card);border:1px solid var(--border);border-radius:10px;color:var(--text);font-family:'DM Mono',monospace;font-size:13px;padding:10px 14px;outline:none;transition:border-color .2s}
-.apiinput:focus{border-color:var(--accent)}
-.apibtn{background:var(--accent);border:none;color:#000;font-family:'Syne',sans-serif;font-size:13px;font-weight:700;padding:10px 18px;border-radius:10px;cursor:pointer;white-space:nowrap;touch-action:manipulation}
-.apiok{font-family:'DM Mono',monospace;font-size:12px;color:var(--accent);margin-top:8px;display:none}
-.apiok.show{display:block}
-
 .lbar{display:flex;align-items:center;justify-content:center;gap:10px;margin-bottom:20px;flex-wrap:wrap;animation:fd .7s .1s ease both}
 .ll{font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.1em}
 select{background:var(--card);border:1px solid var(--border);border-radius:10px;color:var(--text);font-family:'Syne',sans-serif;font-size:14px;font-weight:600;padding:9px 32px 9px 13px;cursor:pointer;appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%236b7f96' d='M6 8L1 3h10z'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 11px center}
@@ -108,20 +97,6 @@ textarea::placeholder{color:var(--muted);font-style:italic}
   <p class="sub">Habla en cualquier idioma · Claude traduce al español</p>
 </header>
 
-<!-- API KEY -->
-<div class="apibox" id="apibox">
-  <div class="apilabel">🔑 Tu API Key de Anthropic</div>
-  <div class="apirow">
-    <input class="apiinput" type="password" id="apikey" placeholder="sk-ant-api03-..." />
-    <button class="apibtn" onclick="saveKey()">Guardar</button>
-  </div>
-  <div class="apiok" id="apiok">✓ API Key guardada — puedes empezar a traducir</div>
-  <div style="font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);margin-top:10px;line-height:1.7">
-    Obtenla gratis en <strong style="color:var(--accent2)">console.anthropic.com</strong> → API Keys.<br>
-    Se guarda solo en tu navegador, nunca en ningún servidor.
-  </div>
-</div>
-
 <div class="lbar">
   <span class="ll">Idioma</span>
   <select id="lang">
@@ -184,28 +159,17 @@ textarea::placeholder{color:var(--muted);font-style:italic}
 
 </div>
 <script>
+// ─── CONFIGURACIÓN ───────────────────────────────────────────────
+// Reemplaza esta URL con la URL de tu Cloudflare Worker después de desplegarlo
+const WORKER_URL = 'https://traductor.johalisg.workers.dev';
+// ─────────────────────────────────────────────────────────────────
+
 const $=id=>document.getElementById(id);
 let recog=null,isListening=false,finalBuffer='',history=[],translateTimer=null;
-
-// API KEY
-function saveKey(){
-  const k=$('apikey').value.trim();
-  if(!k||!k.startsWith('sk-')){showErr('La API key debe empezar con "sk-"');return}
-  localStorage.setItem('anthropic_key',k);
-  $('apiok').classList.add('show');
-  $('apibox').classList.add('ok');
-  hideErr();
-}
-function getKey(){return localStorage.getItem('anthropic_key')||''}
-window.addEventListener('load',()=>{
-  const k=getKey();
-  if(k){$('apikey').value=k;$('apiok').classList.add('show');$('apibox').classList.add('ok')}
-});
 
 // MIC
 function toggleMic(){isListening?stopListening():startListening()}
 function startListening(){
-  if(!getKey()){showErr('Primero ingresa tu API Key de Anthropic arriba.');return}
   const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
   if(!SR){showErr('Tu navegador no soporta reconocimiento de voz. Usa Chrome en Android o Safari en iPhone.');return}
   finalBuffer='';hideErr();
@@ -268,8 +232,6 @@ function showTgt(t){$('tgtT').textContent=t;$('tgtT').className='ptext';$('tgtP'
 function doCopy(){navigator.clipboard.writeText($('tgtT').textContent).then(()=>{$('cpBtn').textContent='✓ Copiado';setTimeout(()=>$('cpBtn').textContent='Copiar ✓',2000)})}
 
 async function doTranslate(text){
-  const key=getKey();
-  if(!key){showErr('Ingresa tu API Key de Anthropic primero.');return}
   if(!text.trim())return;
   const wasListening=isListening;
   setTranslUI(true);hideInterim();
@@ -277,10 +239,14 @@ async function doTranslate(text){
   const lc=$('lang').value;
   const hint=lc?`El texto está en ${map[lc]||lc}.`:'Detecta el idioma automáticamente.';
   try{
-    const res=await fetch('https://api.anthropic.com/v1/messages',{
+    const res=await fetch(WORKER_URL,{
       method:'POST',
-      headers:{'Content-Type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
-      body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:1000,messages:[{role:'user',content:`Eres un traductor experto. ${hint}\nTraduce al español de forma natural.\nResponde SOLO con JSON sin markdown:\n{"original":"...","translation":"...","detected_language":"..."}\n\nTexto:\n${text}`}]})
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({
+        model:'claude-sonnet-4-20250514',
+        max_tokens:1000,
+        messages:[{role:'user',content:`Eres un traductor experto. ${hint}\nTraduce al español de forma natural.\nResponde SOLO con JSON sin markdown:\n{"original":"...","translation":"...","detected_language":"..."}\n\nTexto:\n${text}`}]
+      })
     });
     const data=await res.json();
     if(!res.ok)throw new Error(data.error?.message||JSON.stringify(data.error));
